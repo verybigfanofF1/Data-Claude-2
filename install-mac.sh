@@ -23,6 +23,9 @@ if [ "$NODE_MAJOR" -lt 18 ]; then
 fi
 echo "✓ Node.js $(node -v)  ($(command -v node))"
 
+echo "→ Zamykam stare kopie serwera (jeśli działają w tle)..."
+pkill -f "roblox-claude-bridge/src/index.js" 2>/dev/null || true
+
 echo "→ Instaluję zależności (npm install)..."
 npm install --no-fund --no-audit --omit=dev
 echo "✓ Zależności zainstalowane"

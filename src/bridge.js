@@ -28,36 +28,101 @@ export class StudioBridge {
     this.contexts = new Map(); // context -> {lastSeen, info}
     this.server = null;
     this.listenError = null;
+    this.stopped = false;
+    this.handedOff = false;
+    this.retryTimer = null;
   }
 
-  start() {
-    this.server = http.createServer((req, res) => this.#handle(req, res));
+  /**
+   * Listen on the bridge port. If another bridge instance holds it (e.g. an older copy
+   * that Claude restarted), ask it to hand the port over; otherwise keep retrying.
+   */
+  async start() {
+    if (await this.#tryListen()) return true;
+    if (this.listenError?.code === "EADDRINUSE" && (await this.#requestHandoff())) {
+      for (let i = 0; i < 20 && !this.stopped; i++) {
+        await sleep(250);
+        if (await this.#tryListen()) return true;
+      }
+    }
+    this.#scheduleRetry();
+    return false;
+  }
+
+  #tryListen() {
+    const server = http.createServer((req, res) => this.#handle(req, res));
     return new Promise((resolve) => {
-      this.server.once("error", (err) => {
+      server.once("error", (err) => {
         this.listenError = err;
-        this.log(`bridge: cannot listen on ${this.host}:${this.port}: ${err.message}`);
         resolve(false);
       });
-      this.server.listen(this.port, this.host, () => {
-        this.port = this.server.address().port;
+      server.listen(this.port, this.host, () => {
+        this.server = server;
+        this.port = server.address().port;
+        if (this.listenError) this.log(`bridge: port ${this.port} is free again`);
+        this.listenError = null;
         this.log(`bridge: listening on http://${this.host}:${this.port}`);
         resolve(true);
       });
     });
   }
 
-  async stop() {
+  async #requestHandoff() {
+    try {
+      const res = await fetch(`http://${this.host}:${this.port}/handoff`, {
+        method: "POST",
+        signal: AbortSignal.timeout(3000),
+      });
+      const ok = res.ok && (await res.json()).ok === true;
+      if (ok) this.log(`bridge: an older instance released port ${this.port}`);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  #scheduleRetry() {
+    if (this.stopped || this.handedOff) return;
+    this.log(`bridge: cannot listen on ${this.host}:${this.port}: ${this.listenError?.message}; retrying`);
+    this.retryTimer = setTimeout(async () => {
+      if (!(await this.#tryListen())) this.#scheduleRetry();
+    }, 3000);
+    this.retryTimer.unref?.();
+  }
+
+  #handoff(res) {
+    this.#json(res, 200, { ok: true });
+    this.handedOff = true;
+    this.listenError = new Error(
+      `a newer roblox-claude-bridge instance took over port ${this.port} (only one Claude app can drive Studio at a time)`
+    );
+    this.log("bridge: handing port over to a newer instance");
+    this.#releasePort();
+  }
+
+  #releasePort() {
     for (const { res, timer } of this.waiters.values()) {
       clearTimeout(timer);
       this.#json(res, 200, { commands: [] });
     }
     this.waiters.clear();
+    this.contexts.clear();
     for (const [id, p] of this.pending) {
       clearTimeout(p.timer);
       p.reject(new Error("Bridge stopped"));
       this.pending.delete(id);
     }
-    if (this.server) await new Promise((r) => this.server.close(() => r()));
+    const server = this.server;
+    this.server = null;
+    if (!server) return Promise.resolve();
+    server.closeAllConnections?.();
+    return new Promise((r) => server.close(() => r()));
+  }
+
+  async stop() {
+    this.stopped = true;
+    clearTimeout(this.retryTimer);
+    await this.#releasePort();
   }
 
   connectedContexts() {
@@ -132,7 +197,10 @@ export class StudioBridge {
     try {
       const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
       if (req.method === "GET" && url.pathname === "/health") {
-        return this.#json(res, 200, { ok: true, contexts: this.connectedContexts() });
+        return this.#json(res, 200, { ok: true, service: "roblox-claude-bridge", contexts: this.connectedContexts() });
+      }
+      if (req.method === "POST" && url.pathname === "/handoff") {
+        return this.#handoff(res);
       }
       if (req.method === "GET" && url.pathname === "/reflection") {
         const cls = url.searchParams.get("class");
@@ -192,6 +260,8 @@ export class StudioBridge {
     res.end(body);
   }
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function readJson(req) {
   return new Promise((resolve, reject) => {

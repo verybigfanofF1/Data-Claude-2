@@ -24,20 +24,36 @@ async function main() {
   const port = Number(process.env.ROBLOX_BRIDGE_PORT || 44755);
   const reflection = new Reflection({ log });
   const bridge = new StudioBridge({ port, reflection, log });
-  await bridge.start();
-  reflection.load(); // warm up in the background
 
-  const server = createServer({ bridge, reflection });
-  await server.connect(new StdioServerTransport());
-  log(`MCP server ready (v${VERSION})`);
-
-  const shutdown = async () => {
+  // Exit as soon as the client goes away - even mid-startup. Otherwise an orphaned
+  // instance keeps the bridge port and the next one cannot talk to Studio.
+  let stopping = false;
+  const shutdown = async (reason) => {
+    if (stopping) return;
+    stopping = true;
+    log(`shutting down (${reason})`);
     await bridge.stop().catch(() => {});
     process.exit(0);
   };
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-  process.stdin.on("close", shutdown);
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGHUP", () => shutdown("SIGHUP"));
+  process.stdin.on("end", () => shutdown("stdin closed"));
+  process.stdin.on("close", () => shutdown("stdin closed"));
+  const parentPid = process.ppid;
+  setInterval(() => {
+    // The parent died without closing our stdin: we were re-parented.
+    if (process.ppid !== parentPid) shutdown("parent process exited");
+  }, 2000).unref();
+
+  // Connect MCP first (it starts reading stdin, so the handlers above fire), then the bridge.
+  const server = createServer({ bridge, reflection });
+  const transport = new StdioServerTransport();
+  transport.onclose = () => shutdown("transport closed");
+  await server.connect(transport);
+  await bridge.start();
+  reflection.load(); // warm up in the background
+  log(`MCP server ready (v${VERSION})`);
 }
 
 function isMainModule() {
