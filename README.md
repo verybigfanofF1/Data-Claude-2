@@ -54,31 +54,24 @@ claude mcp add roblox-studio -- node /pełna/ścieżka/do/roblox-claude-bridge/s
 
 ### macOS – krok po kroku
 
+> **macOS 12 Monterey i starsze:** Claude Code (terminal) wymaga macOS 13+, a Node.js 24 – macOS 13.5+.
+> Używaj **Claude Desktop** (macOS 11+) i **Node.js 22 LTS** (`https://nodejs.org/dist/latest-v22.x/`, plik `.pkg`).
+
+1. Zainstaluj Node.js (na macOS 13.5+ może być najnowszy LTS, na starszych – 22 LTS).
+2. Pobierz to repo (ZIP z GitHuba) i rozpakuj, np. do folderu domowego.
+3. W Terminalu:
+
 ```bash
-brew install node            # albo instalator z nodejs.org (wersja LTS)
-cd ~/roblox-claude-bridge
-npm install
-npm run install-plugin       # → ~/Documents/Roblox/Plugins/ClaudeBridge.server.lua
-which node                   # np. /opt/homebrew/bin/node – przyda się niżej
+cd ~/roblox-claude-bridge     # folder z rozpakowanym projektem
+bash install-mac.sh
 ```
 
-**Ważne dla Claude Desktop na Macu:** aplikacje z Docka nie widzą `PATH` z terminala, więc w configu
-(`~/Library/Application Support/Claude/claude_desktop_config.json`) podaj **pełną ścieżkę** do `node`
-z `which node` – inaczej pojawi się błąd `spawn node ENOENT`:
+Skrypt instaluje zależności, kopiuje plugin do `~/Documents/Roblox/Plugins` i dopisuje serwer do
+`~/Library/Application Support/Claude/claude_desktop_config.json` z **pełną ścieżką** do `node`
+(aplikacje z Docka nie widzą `PATH` z terminala – stąd typowy błąd `spawn node ENOENT`).
+Inne ustawienia w configu zostają, a stary plik jest zapisany jako `.backup`.
 
-```json
-{
-  "mcpServers": {
-    "roblox-studio": {
-      "command": "/opt/homebrew/bin/node",
-      "args": ["/Users/TWOJA_NAZWA/roblox-claude-bridge/src/index.js"]
-    }
-  }
-}
-```
-
-Po zmianie configu zamknij Claude Desktop całkowicie (`Cmd+Q`) i otwórz ponownie.
-Claude Code w terminalu nie ma tego problemu.
+Potem zamknij Claude Desktop całkowicie (`Cmd+Q`) i otwórz ponownie.
 
 ### Pierwsze uruchomienie
 
