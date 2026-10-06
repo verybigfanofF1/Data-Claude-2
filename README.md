@@ -52,6 +52,34 @@ claude mcp add roblox-studio -- node /pełna/ścieżka/do/roblox-claude-bridge/s
 }
 ```
 
+### macOS – krok po kroku
+
+```bash
+brew install node            # albo instalator z nodejs.org (wersja LTS)
+cd ~/roblox-claude-bridge
+npm install
+npm run install-plugin       # → ~/Documents/Roblox/Plugins/ClaudeBridge.server.lua
+which node                   # np. /opt/homebrew/bin/node – przyda się niżej
+```
+
+**Ważne dla Claude Desktop na Macu:** aplikacje z Docka nie widzą `PATH` z terminala, więc w configu
+(`~/Library/Application Support/Claude/claude_desktop_config.json`) podaj **pełną ścieżkę** do `node`
+z `which node` – inaczej pojawi się błąd `spawn node ENOENT`:
+
+```json
+{
+  "mcpServers": {
+    "roblox-studio": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["/Users/TWOJA_NAZWA/roblox-claude-bridge/src/index.js"]
+    }
+  }
+}
+```
+
+Po zmianie configu zamknij Claude Desktop całkowicie (`Cmd+Q`) i otwórz ponownie.
+Claude Code w terminalu nie ma tego problemu.
+
 ### Pierwsze uruchomienie
 
 1. Uruchom Claude (serwer MCP startuje automatycznie).
@@ -138,7 +166,8 @@ Wartości są konwertowane według prawdziwego typu właściwości (z API Roblox
 ## Rozwój
 
 ```bash
-npm test          # testy mostu i serwera MCP (z symulowanym pluginem)
+npm test          # testy mostu, serwera MCP i pluginu (plugin w Luau z atrapą API Roblox;
+                  # wymaga binarki `luau` z github.com/luau-lang/luau/releases w PATH lub LUAU_BIN)
 npm start         # ręczne uruchomienie serwera (stdio)
 ```
 

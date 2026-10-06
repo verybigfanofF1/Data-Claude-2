@@ -8,7 +8,7 @@ Claude ↔ MCP stdio ↔ `src/index.js` ↔ HTTP long-poll on 127.0.0.1:44755 �
 - `src/reflection.js` – Roblox API dump (classes, property types, enums), cached in ~/.cache.
 - Plugin op names (`handlers.<op>`) must match `op` in `src/tools.js` and `OPERATION_NAMES` (batch).
 
-Commands: `npm test` (Node test runner, fake plugin), `npm run install-plugin`.
+Commands: `npm test` (Node test runner; fake plugin + plugin run in `luau` against test/plugin/mock.luau, needs LUAU_BIN or luau on PATH), `npm run install-plugin`.
 Never write to stdout in the server – it is the MCP channel; log to stderr.
 Luau check: `luau-compile --text plugin/ClaudeBridge.server.lua` (from luau-lang/luau releases).
 

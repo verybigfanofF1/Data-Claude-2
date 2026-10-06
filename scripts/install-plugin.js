@@ -9,7 +9,7 @@ const source = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "pl
 
 function pluginsDir() {
   if (process.env.ROBLOX_PLUGINS_DIR) return process.env.ROBLOX_PLUGINS_DIR;
-  if (process.platform === "win32") return path.join(process.env.LOCALAPPDATA || "", "Roblox", "Plugins");
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, "Roblox", "Plugins");
   if (process.platform === "darwin") return path.join(os.homedir(), "Documents", "Roblox", "Plugins");
   return null;
 }

@@ -715,7 +715,12 @@ local function setProperty(instance, name, value)
 	if not readOk and not meta then
 		fail("%s has no property %q", instance.ClassName, name)
 	end
-	local converted = decode(value, meta and meta.type, meta and meta.category, readOk and current or nil)
+	local typeName, category = meta and meta.type, meta and meta.category
+	if not meta and readOk and current == nil and type(value) == "string" then
+		-- Without reflection data, a nil-valued property (PrimaryPart, Part0, Adornee...) is an Instance reference.
+		category = "Class"
+	end
+	local converted = decode(value, typeName, category, readOk and current or nil)
 	local ok, err = pcall(function()
 		instance[name] = converted
 	end)
@@ -745,6 +750,17 @@ end
 
 local SKIP_READ = { Source = true }
 
+-- Used when the bridge cannot provide reflection data; unreadable ones are skipped.
+local COMMON_PROPERTIES = {
+	"Name", "ClassName", "Parent", "Archivable", "Anchored", "CanCollide", "CanTouch", "CanQuery", "CastShadow",
+	"Massless", "Position", "Orientation", "Size", "CFrame", "Color", "BrickColor", "Material", "Transparency",
+	"Reflectance", "Shape", "PrimaryPart", "WorldPivot", "Disabled", "Enabled", "RunContext", "Value", "Text",
+	"TextColor3", "TextSize", "TextScaled", "Font", "FontFace", "BackgroundColor3", "BackgroundTransparency",
+	"AnchorPoint", "Visible", "ZIndex", "Image", "Brightness", "Range", "MaxHealth", "Health", "WalkSpeed",
+	"JumpPower", "SoundId", "Volume", "Looped", "Playing", "Texture", "MeshId", "TextureID", "ClockTime",
+	"Ambient", "OutdoorAmbient", "FogEnd", "FogColor", "Gravity",
+}
+
 local function readProperties(instance, only)
 	local result = { path = pathOf(instance), className = instance.ClassName, properties = {} }
 	local names = {}
@@ -757,7 +773,7 @@ local function readProperties(instance, only)
 			end
 		end
 		if #names == 0 then
-			names = { "Name", "ClassName", "Parent" }
+			names = COMMON_PROPERTIES
 		end
 	end
 	for _, name in ipairs(names) do
